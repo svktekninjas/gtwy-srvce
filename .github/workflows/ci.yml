@@ -2,11 +2,11 @@ name: Java Gateway Service CI
 
 on:
   push:
-    branches: [ ci_ghwf_gtwysrvce ]
+    branches: [ main ]
     paths-ignore:
       - 'Docs/**'
   pull_request:
-    branches: [ main, base ]
+    branches: [ main ]
     paths-ignore:
       - 'Docs/**'
 
