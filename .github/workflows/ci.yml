@@ -60,7 +60,7 @@ jobs:
         else
           echo "Sonar properties file not found, using default values"
           echo "sonar_project_key=svktekninjas_gtwy-srvce" >> $GITHUB_OUTPUT
-          echo "sonar_organization=svktekninjas" >> $GITHUB_OUTPUT
+          echo "sonar_organization=svktek" >> $GITHUB_OUTPUT
         fi
     
     - name: Set up JDK
