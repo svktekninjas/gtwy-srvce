@@ -92,16 +92,15 @@ jobs:
     - name: Run SonarQube Analysis with JaCoCo
       if: ${{ env.ENABLE_SONAR_SCAN == 'true' }}
       run: |
-        cd app-spring-boot-admin/app-spring-boot-admin
-        # Run sonar with properties from root properties file and JaCoCo integration
+        # Run sonar with properties from properties file and JaCoCo integration
         mvn sonar:sonar \
+          -Dsonar.projectBaseDir="${GITHUB_WORKSPACE}" \
           -Dsonar.projectKey="${{ steps.sonar-props.outputs.sonar_project_key }}" \
           -Dsonar.organization="${{ steps.sonar-props.outputs.sonar_organization }}" \
           -Dsonar.host.url="${{ env.SONAR_HOST_URL }}" \
           -Dsonar.login="${{ secrets.SONAR_TOKEN }}" \
-          -Dsonar.coverage.jacoco.xmlReportPaths="${{ env.JACOCO_REPORT_PATH }}" \
-          -Dsonar.java.coveragePlugin=jacoco \
-          -Dsonar.qualitygate.wait=true
+          -Dsonar.configFile="${GITHUB_WORKSPACE}/sonar-project.properties" \
+          --file app-spring-boot-admin/app-spring-boot-admin/pom.xml
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
