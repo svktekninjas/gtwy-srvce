@@ -1,0 +1,112 @@
+name: Java Gateway Service CI
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'Docs/**'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'Docs/**'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    env:
+      # Build Configuration
+      JAVA_VERSION: "17"
+      MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+      MAVEN_GOALS: "clean verify"
+      
+      # Docker Configuration
+      DOCKER_IMAGE_NAME: "gateway-service"
+      DOCKER_FILE_PATH: "./app-spring-boot-admin/app-spring-boot-admin/Dockerfile"
+      
+      # Workflow Control
+      ENABLE_SONAR_SCAN: "true"
+      ENABLE_DEPENDENCY_CHECK: "true"
+      ENABLE_DOCKER_SCAN: "true"
+      FAIL_ON_VULNERABILITY: "true"
+      
+      # Versioning
+      VERSION_STRATEGY: "git-sha"
+      MAIN_BRANCH: "main"
+      
+      # SonarQube Configuration - Default URL
+      SONAR_HOST_URL: "https://sonarcloud.io"
+      
+      # JaCoCo Configuration
+      JACOCO_REPORT_PATH: "target/site/jacoco/jacoco.xml"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Required for SonarQube to get proper SCM history
+    
+    - name: Load Sonar Properties
+      id: sonar-props
+      run: |
+        SONAR_PROPERTIES_FILE="sonar-project.properties"
+        if [ -f "$SONAR_PROPERTIES_FILE" ]; then
+          echo "Loading Sonar properties from $SONAR_PROPERTIES_FILE"
+          SONAR_PROJECT_KEY=$(grep "^sonar.projectKey=" "$SONAR_PROPERTIES_FILE" | cut -d'=' -f2)
+          SONAR_ORGANIZATION=$(grep "^sonar.organization=" "$SONAR_PROPERTIES_FILE" | cut -d'=' -f2)
+          echo "sonar_project_key=$SONAR_PROJECT_KEY" >> $GITHUB_OUTPUT
+          echo "sonar_organization=$SONAR_ORGANIZATION" >> $GITHUB_OUTPUT
+        else
+          echo "Sonar properties file not found, using default values"
+          echo "sonar_project_key=svktekninjas_gtwy-srvce" >> $GITHUB_OUTPUT
+          echo "sonar_organization=svktek" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Cache Maven packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+    
+    - name: Cache SonarCloud packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
+    
+    - name: Build and Test with JaCoCo
+      run: |
+        cd app-spring-boot-admin/app-spring-boot-admin
+        mvn ${{ env.MAVEN_CLI_OPTS }} ${{ env.MAVEN_GOALS }}
+    
+    - name: Run SonarQube Analysis with JaCoCo
+      if: ${{ env.ENABLE_SONAR_SCAN == 'true' }}
+      run: |
+        cd app-spring-boot-admin/app-spring-boot-admin
+        # Run sonar with properties from root properties file and JaCoCo integration
+        mvn sonar:sonar \
+          -Dsonar.projectKey="${{ steps.sonar-props.outputs.sonar_project_key }}" \
+          -Dsonar.organization="${{ steps.sonar-props.outputs.sonar_organization }}" \
+          -Dsonar.host.url="${{ env.SONAR_HOST_URL }}" \
+          -Dsonar.login="${{ secrets.SONAR_TOKEN }}" \
+          -Dsonar.coverage.jacoco.xmlReportPaths="${{ env.JACOCO_REPORT_PATH }}" \
+          -Dsonar.java.coveragePlugin=jacoco \
+          -Dsonar.qualitygate.wait=true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gateway-service-jar
+        path: app-spring-boot-admin/app-spring-boot-admin/target/*.jar
